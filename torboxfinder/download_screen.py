@@ -47,6 +47,7 @@ class DownloadScreen(Screen):
         self.client = client
         self.download_dir = download_dir
         self.current_items: list = []
+        self._name_max_len: int = 30
         super().__init__()
 
     def compose(self) -> ComposeResult:
@@ -70,10 +71,34 @@ class DownloadScreen(Screen):
         self.query_one("#dl_loading", LoadingIndicator).display = False
         self.query_one("#dl_progress", ProgressBar).display = False
         table = self.query_one("#downloads_table", DataTable)
-        table.add_columns("ID", "Type", "Name", "Status", "Size", "Progress")
+        # No fixed widths — Name column width is calculated dynamically
+        table.add_column("ID")
+        table.add_column("Type")
+        table.add_column("Name")
+        table.add_column("Status")
+        table.add_column("Size")
+        table.add_column("Progress")
         table.cursor_type = "row"
         table.zebra_stripes = True
+        self._name_max_len = self._calc_name_max_len()
         self.action_refresh()
+
+    def on_resize(self, event) -> None:
+        # Recalculate Name column width when terminal resizes
+        self._name_max_len = self._calc_name_max_len()
+        self._update_table(self.current_items)
+
+    def _calc_name_max_len(self) -> int:
+        """Compute how many characters the Name column can hold."""
+        term_w = getattr(self, "size", None)
+        if term_w is not None:
+            term_w = term_w.width if hasattr(term_w, "width") else 80
+        else:
+            term_w = 80
+        MIN_NAME = 10
+        # reserved ≈ ID(8) + Type(6) + Status(12) + Size(10) + Progress(10) + borders/padding(5) ≈ 51
+        reserved = 8 + 6 + 12 + 10 + 10 + 5
+        return max(term_w - reserved, MIN_NAME)
 
     def _set_loading(self, visible: bool) -> None:
         self.query_one("#dl_loading", LoadingIndicator).display = visible
@@ -142,7 +167,7 @@ class DownloadScreen(Screen):
             table.add_row(
                 str(item.get("id", "?")),
                 str(item.get("_type", "?")),
-                str(item.get("name", "Unnamed")),
+                _trunc_name(str(item.get("name", "Unnamed")), self._name_max_len),
                 str(item.get("status", "unknown")),
                 _human_size(item.get("size", 0)),
                 f"{progress * 100:.1f}%",
@@ -255,9 +280,15 @@ class DownloadScreen(Screen):
         if status:
             status.update(msg)
 
-    # ------------------------------------------------------------------
-    # Delete selected
-    # ------------------------------------------------------------------
+
+def _trunc_name(name: str, max_len: int = 30) -> str:
+    if len(name) <= max_len:
+        return name
+    return name[:max_len - 1] + "…"
+
+# ------------------------------------------------------------------
+# Delete selected
+# ------------------------------------------------------------------
     def action_delete_selected(self) -> None:
         table = self.query_one("#downloads_table", DataTable)
         if table.cursor_row is None or table.cursor_row >= len(self.current_items):
