@@ -353,6 +353,7 @@ class SearchScreen(Screen):
             return
         max_page = max(0, (len(self._filtered_results) - 1) // self._items_per_page)
         if self._current_page >= max_page:
+            self.notify("No more results.", severity="information")
             return
         self._current_page += 1
         self._refresh_table()
@@ -361,6 +362,7 @@ class SearchScreen(Screen):
         if not self._filtered_results:
             return
         if self._current_page <= 0:
+            self.notify("Already on first page.", severity="information")
             return
         self._current_page -= 1
         self._refresh_table()
