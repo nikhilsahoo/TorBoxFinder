@@ -216,6 +216,7 @@ class SearchScreen(Screen):
         table.add_column("Size")
         table.add_column("Age")
         table.add_column("Src")
+        table.add_column("Type")
         table.add_column("Extra")
         table.cursor_type = "row"
         table.zebra_stripes = True
@@ -538,6 +539,7 @@ class SearchScreen(Screen):
                 _human_size(item.get("size", 0)),
                 _human_age(item),
                 source,
+                kind[:1].upper() if kind else "?",
                 extra,
             )
 
