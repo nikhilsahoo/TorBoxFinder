@@ -710,7 +710,7 @@ class SearchScreen(Screen):
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
-class NZBTuiApp(App):
+class TorBoxFinderApp(App):
     """Root Textual application."""
 
     CSS_PATH = "app.css"
@@ -804,7 +804,7 @@ def _normalize_nzbfinder(item: dict) -> dict:
 # Entrypoint
 # ---------------------------------------------------------------------------
 def main() -> None:
-    app = NZBTuiApp()
+    app = TorBoxFinderApp()
     app.run()
 
 
