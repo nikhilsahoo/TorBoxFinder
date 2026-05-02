@@ -527,8 +527,10 @@ class SearchScreen(Screen):
             source = "NZB" if source == "nzbfinder" else "TB"
             kind = item.get("_kind", "usenet")
             extra = ""
-            if kind == "torrents":
-                extra = f"S{item.get('seeders', 0)}"
+            if kind == "usenet":
+                extra = "U"
+            elif kind == "torrents":
+                extra = f"T S{item.get('seeders', 0)}"
                 if item.get("cached"):
                     extra += " C"
             table.add_row(
