@@ -39,7 +39,7 @@ export NZB_API_KEY="your_nzbfinder_key"
 export TORBOX_API_KEY="your_torbox_key"
 
 # Run
-python -m nzb_tui
+python main.py
 ```
 
 ## Configuration
@@ -50,6 +50,14 @@ Press `c` on the search screen to open the configuration panel, or create a `.en
 NZB_API_KEY=your_nzbfinder_api_key
 TORBOX_API_KEY=your_torbox_api_key
 DOWNLOAD_DIR=/home/user/Downloads
+```
+
+## Run
+
+```bash
+python main.py
+# or
+python -m torboxfinder
 ```
 
 ## Search Screen Controls
@@ -80,15 +88,16 @@ DOWNLOAD_DIR=/home/user/Downloads
 ## Architecture
 
 ```
-nzb_tui/
+torboxfinder/
 ├── app.py              # Main TUI app (SearchScreen, ConfigScreen, NZBTuiApp)
 ├── download_screen.py  # TorBox downloads monitor
 ├── torbox_client.py    # SDK wrapper for TorBox API
 ├── torbox_search.py    # TorBox search API client
 ├── nzbfinder.py        # NZBFinder Newznab XML client
 ├── nzb_parser.py       # Custom NZB XML parser
-├── helpers.py           # Shared utilities
-└── config.py           # .env-based config
+├── helpers.py          # Shared utilities
+├── config.py           # .env-based config
+└── app.css             # TUI styles
 ```
 
 ## License

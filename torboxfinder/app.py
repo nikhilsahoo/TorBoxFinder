@@ -1,4 +1,4 @@
-"""Main TUI application for NZBFinder TorBox integration."""
+"""Main TUI application for TorBoxFinder."""
 
 import datetime
 from email.utils import parsedate_to_datetime
@@ -24,13 +24,13 @@ from textual.widgets import (
 )
 from textual.worker import Worker
 
-from nzb_tui.config import Config
-from nzb_tui.download_screen import DownloadScreen
-from nzb_tui.helpers import _human_size, _extract_filename
-from nzb_tui.nzbfinder import NZBFinderClient, NZBFinderError
-from nzb_tui.nzb_parser import get_subject
-from nzb_tui.torbox_client import TorBoxClient
-from nzb_tui.torbox_search import TorBoxSearchClient, TorBoxSearchError
+from torboxfinder.config import Config
+from torboxfinder.download_screen import DownloadScreen
+from torboxfinder.helpers import _human_size, _extract_filename
+from torboxfinder.nzbfinder import NZBFinderClient, NZBFinderError
+from torboxfinder.nzb_parser import get_subject
+from torboxfinder.torbox_client import TorBoxClient
+from torboxfinder.torbox_search import TorBoxSearchClient, TorBoxSearchError
 
 
 # ---------------------------------------------------------------------------

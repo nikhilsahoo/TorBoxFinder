@@ -1,4 +1,4 @@
-"""Download screen for TorBox downloads (usenet, torrents, web)."""
+"""Download screen for TorBoxFinder downloads (usenet, torrents, web)."""
 
 import urllib.request
 from pathlib import Path
@@ -18,8 +18,8 @@ from textual.widgets import (
     Static,
 )
 
-from nzb_tui.helpers import _human_size, _extract_filename
-from nzb_tui.torbox_client import TorBoxClient
+from torboxfinder.helpers import _human_size, _extract_filename
+from torboxfinder.torbox_client import TorBoxClient
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ class DownloadScreen(Screen):
         import urllib.request
 
         self.download_dir.mkdir(parents=True, exist_ok=True)
-        req = urllib.request.Request(url, headers={"User-Agent": "nzb-tui/0.1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "TorBoxFinder/0.1.0"})
 
         with urllib.request.urlopen(req, timeout=120) as response:
             cd = response.headers.get("Content-Disposition", "")

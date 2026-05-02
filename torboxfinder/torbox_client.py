@@ -21,7 +21,7 @@ class TorBoxClient:
             base_url=self.BASE_URL,
         )
         self._session = requests.Session()
-        self._session.headers["User-Agent"] = "nzb-tui/0.1.0"
+        self._session.headers["User-Agent"] = "TorBoxFinder/0.1.0"
 
     # ------------------------------------------------------------------
     # Usenet

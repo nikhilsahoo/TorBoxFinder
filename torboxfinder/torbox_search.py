@@ -18,7 +18,7 @@ class TorBoxSearchClient:
         self.session = requests.Session()
         self.session.headers.update({
             "Authorization": f"Bearer {api_key}",
-            "User-Agent": "nzb-tui/0.1.0",
+            "User-Agent": "TorBoxFinder/0.1.0",
         })
 
     # ------------------------------------------------------------------

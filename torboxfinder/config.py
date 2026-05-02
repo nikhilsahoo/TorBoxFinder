@@ -1,4 +1,4 @@
-"""Configuration management for NZB TUI."""
+"""Configuration management for TorBoxFinder."""
 
 import os
 from pathlib import Path

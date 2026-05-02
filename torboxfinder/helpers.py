@@ -1,4 +1,4 @@
-"""Shared helpers for the NZB TUI."""
+"""Shared helpers for TorBoxFinder."""
 
 from typing import Optional
 
