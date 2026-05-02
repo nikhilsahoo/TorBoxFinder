@@ -1,0 +1,72 @@
+/* NZB TUI App Styles */
+Screen {
+    layout: vertical;
+}
+
+.title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin: 1 0;
+}
+
+.search_bar, .filters_bar, .controls_bar {
+    height: auto;
+    margin: 1 0;
+}
+
+#search_input {
+    width: 4fr;
+}
+
+#search_btn {
+    width: 1fr;
+}
+
+#results_table {
+    height: 1fr;
+    margin: 0 0;
+}
+
+#downloads_table {
+    height: 1fr;
+    margin: 0 0;
+}
+
+#detail_pane {
+    height: auto;
+    padding: 0 1;
+}
+
+#pagination_status {
+    height: auto;
+    text-align: center;
+    color: $text-muted;
+}
+
+#help_text, #help_text_1, #help_text_2 {
+    height: auto;
+    text-align: center;
+    color: $text-muted;
+    margin: 0 0;
+}
+
+.buttons {
+    height: auto;
+    margin: 1 0;
+}
+
+#status_msg {
+    height: auto;
+    margin: 1 0;
+}
+
+#search_loading, #dl_loading {
+    height: auto;
+    margin: 0 0;
+}
+
+#dl_progress {
+    height: auto;
+    margin: 0 0;
+}

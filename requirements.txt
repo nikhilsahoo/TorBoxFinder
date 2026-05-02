@@ -1,0 +1,6 @@
+torbox-api>=1.0.6
+textual>=0.50.0
+requests>=2.31.0
+pydantic>=2.5.0
+appdirs>=1.4.4
+python-dotenv>=1.0.0
