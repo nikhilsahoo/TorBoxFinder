@@ -141,7 +141,7 @@ class SearchScreen(Screen):
         self._eager_fetch_limit: int = 500
 
         # Filter / sort
-        self._sort_key: str = "seeders"   # "seeders" | "size" | "age"
+        self._sort_key: str = "age"      # "age" | "seeders" | "size"
         self._sort_desc: bool = True
         self._title_max_len: int = 45      # dynamic; recalculated on mount/resize
 
@@ -193,8 +193,8 @@ class SearchScreen(Screen):
         # Sort / extra controls
         yield Horizontal(
             Select(
-                [("Most Seeders", "seeders"), ("Largest Size", "size"), ("Most Recent", "age")],
-                value="seeders",
+                [("Newest First", "age"), ("Most Seeders", "seeders"), ("Largest Size", "size")],
+                value="age",
                 id="sort_select",
                 allow_blank=False,
             ),
@@ -459,7 +459,7 @@ class SearchScreen(Screen):
         self.app.call_from_thread(self._set_loading, False)
 
     def _worker_search_nzbfinder(self, query: str) -> list:
-        """Eagerly fetch NZBFinder results up to limit."""
+        """Eagerly fetch NZBFinder results up to limit, normalizing keys."""
         all_nzb = []
         offset = 0
         while len(all_nzb) < self._eager_fetch_limit:
@@ -468,7 +468,7 @@ class SearchScreen(Screen):
             )
             if not results:
                 break
-            all_nzb.extend(results)
+            all_nzb.extend(_normalize_nzbfinder(r) for r in results)
             if len(results) < self._items_per_page:
                 break
             if self.nzb_client.last_total is not None and offset >= self.nzb_client.last_total:
@@ -762,6 +762,38 @@ def _trunc_title(title: str, max_len: int = 30) -> str:
     if len(title) <= max_len:
         return title
     return title[:max_len - 1] + "…"
+
+
+def _normalize_nzbfinder(item: dict) -> dict:
+    """Normalize NZBFinder result to match TorBox result keys for unified sorting."""
+    from email.utils import parsedate_to_datetime
+    import datetime
+
+    # Compute age in days from pubDate
+    age_days = 0
+    pub_date = item.get("pubDate") or item.get("date") or item.get("published")
+    if pub_date:
+        try:
+            dt = parsedate_to_datetime(pub_date)
+            now = datetime.datetime.now(datetime.timezone.utc)
+            age_days = max(0, (now - dt).days)
+        except Exception:
+            age_days = 0
+
+    return {
+        "_source": "nzbfinder",
+        "_kind": "usenet",
+        "title": item.get("title", "Unnamed"),
+        "size": int(item.get("size") or 0),
+        "age": age_days,
+        "seeders": 0,
+        "peers": 0,
+        "cached": False,
+        "id": item.get("id") or item.get("guid", ""),
+        "link": item.get("link", ""),
+        "guid": item.get("guid", ""),
+        "category": item.get("category", ""),
+    }
 
 
 # ---------------------------------------------------------------------------
