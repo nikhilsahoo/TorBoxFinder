@@ -10,16 +10,25 @@ from textual.containers import Horizontal
 from textual.screen import Screen
 from textual.widgets import (
     Button,
+    Checkbox,
     DataTable,
     Footer,
     Header,
+    Input,
     LoadingIndicator,
     ProgressBar,
+    Select,
     Static,
 )
 
 from torboxfinder.helpers import _human_size, _extract_filename
 from torboxfinder.torbox_client import TorBoxClient
+
+
+def _trunc_name(name: str, max_len: int = 30) -> str:
+    if len(name) <= max_len:
+        return name
+    return name[: max_len - 1] + "…"
 
 
 # ---------------------------------------------------------------------------
@@ -39,6 +48,9 @@ class DownloadScreen(Screen):
         Binding("d", "download_selected", "Download", show=False),
         Binding("delete", "delete_selected", "Delete", show=False),
         Binding("x", "delete_selected", "Delete", show=False),
+        Binding("n", "next_page", "Next Page", show=False),
+        Binding("N", "prev_page", "Prev Page", show=False),
+        Binding("s", "focus_filter", "Filter", show=False),
         Binding("escape", "app.pop_screen", "Back", priority=True, show=False),
         Binding("q", "app.quit", "Quit", show=False),
     ]
@@ -48,22 +60,59 @@ class DownloadScreen(Screen):
         self.download_dir = download_dir
         self.current_items: list = []
         self._name_max_len: int = 30
+
+        # Pagination / filter
+        self._all_items: list = []
+        self._filtered_items: list = []
+        self._current_page: int = 0
+        self._items_per_page: int = 50
+        self._filter_query: str = ""
+        self._filter_type: str = "all"
+        self._filter_status: str = "all"
+        self._sort_key: str = "name"
+        self._sort_desc: bool = False
+
         super().__init__()
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield Static(
             "[b]TorBox Downloads[/b] "
-            "[dim]j/k[/] move  [dim]ctrl+d/ctrl+u[/] page  [dim]gg/G[/] top/bottom",
+            "[dim]j/k[/] move  [dim]ctrl+d/ctrl+u[/] page  [dim]gg/G[/] top/bottom  [dim]n/N[/] page",
             id="help_text_1",
         )
         yield Static(
-            "[dim]r[/] refresh  [dim]d[/] download  [dim]x[/] delete  [dim]esc[/] back  [dim]q[/] quit",
+            "[dim]r[/] refresh  [dim]d[/] download  [dim]x[/] delete  [dim]s[/] filter  [dim]esc[/] back  [dim]q[/] quit",
             id="help_text_2",
+        )
+        # Filter / sort / search bar
+        yield Horizontal(
+            Input(placeholder="Filter by name...", id="filter_input"),
+            Select(
+                [("All Types", "all"), ("Usenet", "usenet"), ("Torrent", "torrent"), ("Web", "web")],
+                value="all",
+                id="type_filter",
+                allow_blank=False,
+            ),
+            Select(
+                [("All Status", "all"), ("Completed", "completed"), ("Active", "active"), ("Queued", "queued"), ("Failed", "failed")],
+                value="all",
+                id="status_filter",
+                allow_blank=False,
+            ),
+            Select(
+                [("Name", "name"), ("Size", "size"), ("Status", "status"), ("Progress", "progress")],
+                value="name",
+                id="sort_select",
+                allow_blank=False,
+            ),
+            Button("↓", id="sort_dir_btn"),
+            classes="controls_bar",
         )
         yield LoadingIndicator(id="dl_loading")
         yield ProgressBar(id="dl_progress", show_percentage=True, show_eta=False)
         yield DataTable(id="downloads_table")
+        yield Static(id="pagination_status")
         yield Static(id="dl_status")
         yield Footer()
 
@@ -71,7 +120,6 @@ class DownloadScreen(Screen):
         self.query_one("#dl_loading", LoadingIndicator).display = False
         self.query_one("#dl_progress", ProgressBar).display = False
         table = self.query_one("#downloads_table", DataTable)
-        # No fixed widths — Name column width is calculated dynamically
         table.add_column("ID")
         table.add_column("Type")
         table.add_column("Name")
@@ -84,19 +132,16 @@ class DownloadScreen(Screen):
         self.action_refresh()
 
     def on_resize(self, event) -> None:
-        # Recalculate Name column width when terminal resizes
         self._name_max_len = self._calc_name_max_len()
-        self._update_table(self.current_items)
+        self._refresh_table()
 
     def _calc_name_max_len(self) -> int:
-        """Compute how many characters the Name column can hold."""
         term_w = getattr(self, "size", None)
         if term_w is not None:
             term_w = term_w.width if hasattr(term_w, "width") else 80
         else:
             term_w = 80
         MIN_NAME = 10
-        # reserved ≈ ID(8) + Type(6) + Status(12) + Size(10) + Progress(10) + borders/padding(5) ≈ 51
         reserved = 8 + 6 + 12 + 10 + 10 + 5
         return max(term_w - reserved, MIN_NAME)
 
@@ -133,6 +178,64 @@ class DownloadScreen(Screen):
             table.move_cursor(row=len(table.rows) - 1)
 
     # ------------------------------------------------------------------
+    # Filter / Sort controls
+    # ------------------------------------------------------------------
+    def action_focus_filter(self) -> None:
+        self.query_one("#filter_input", Input).focus()
+
+    def on_input_submitted(self, event) -> None:
+        if event.input.id == "filter_input":
+            self._filter_query = event.input.value.strip().lower()
+            self._current_page = 0
+            self._apply_filters()
+
+    def on_select_changed(self, event) -> None:
+        if event.select.id == "type_filter":
+            self._filter_type = str(event.value) if event.value else "all"
+            self._current_page = 0
+            self._apply_filters()
+        elif event.select.id == "status_filter":
+            self._filter_status = str(event.value) if event.value else "all"
+            self._current_page = 0
+            self._apply_filters()
+        elif event.select.id == "sort_select":
+            self._sort_key = str(event.value) if event.value else "name"
+            self._apply_filters()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "sort_dir_btn":
+            btn = self.query_one("#sort_dir_btn", Button)
+            if btn.label == "↓":
+                btn.label = "↑"
+                self._sort_desc = True
+            else:
+                btn.label = "↓"
+                self._sort_desc = False
+            self._apply_filters()
+
+    # ------------------------------------------------------------------
+    # Pagination
+    # ------------------------------------------------------------------
+    def action_next_page(self) -> None:
+        if not self._filtered_items:
+            return
+        max_page = max(0, (len(self._filtered_items) - 1) // self._items_per_page)
+        if self._current_page >= max_page:
+            self.notify("No more results.", severity="information")
+            return
+        self._current_page += 1
+        self._refresh_table()
+
+    def action_prev_page(self) -> None:
+        if not self._filtered_items:
+            return
+        if self._current_page <= 0:
+            self.notify("Already on first page.", severity="information")
+            return
+        self._current_page -= 1
+        self._refresh_table()
+
+    # ------------------------------------------------------------------
     # Refresh
     # ------------------------------------------------------------------
     def action_refresh(self) -> None:
@@ -151,17 +254,79 @@ class DownloadScreen(Screen):
             for item in self.client.list_web_downloads():
                 item["_type"] = "web"
                 all_items.append(item)
-            self.app.call_from_thread(self._update_table, all_items)
+            self.app.call_from_thread(self._set_all_items, all_items)
         except Exception as exc:
             self.app.call_from_thread(lambda m=f"Error refreshing: {exc}": self.notify(m, severity="error"))
         finally:
             self.app.call_from_thread(self._set_loading, False)
 
-    def _update_table(self, items: list) -> None:
+    def _set_all_items(self, items: list) -> None:
+        self._all_items = items
+        self._apply_filters()
+
+    # ------------------------------------------------------------------
+    # Filtering / Sorting / Pagination
+    # ------------------------------------------------------------------
+    def _apply_filters(self) -> None:
+        query = self._filter_query
+        type_filter = self._filter_type
+        status_filter = self._filter_status
+        sort_key = self._sort_key
+        sort_desc = self._sort_desc
+
+        filtered = list(self._all_items)
+
+        # Name filter
+        if query:
+            filtered = [i for i in filtered if query in str(i.get("name", "")).lower()]
+
+        # Type filter
+        if type_filter != "all":
+            filtered = [i for i in filtered if str(i.get("_type", "")) == type_filter]
+
+        # Status filter
+        if status_filter != "all":
+            status_lower = status_filter.lower()
+            def _match_status(item):
+                st = str(item.get("status", "")).lower()
+                if status_lower == "completed":
+                    return st in ("completed", "complete")
+                if status_lower == "active":
+                    return st not in ("completed", "complete", "failed", "queued")
+                if status_lower == "queued":
+                    return st == "queued"
+                if status_lower == "failed":
+                    return st == "failed"
+                return True
+            filtered = [i for i in filtered if _match_status(i)]
+
+        # Sort
+        def _sort_key_fn(item):
+            if sort_key == "name":
+                return str(item.get("name", "")).lower()
+            if sort_key == "size":
+                return int(item.get("size", 0) or 0)
+            if sort_key == "status":
+                return str(item.get("status", "")).lower()
+            if sort_key == "progress":
+                return float(item.get("progress", 0) or 0)
+            return 0
+
+        filtered.sort(key=_sort_key_fn, reverse=sort_desc)
+
+        self._filtered_items = filtered
+        self._refresh_table()
+
+    def _refresh_table(self) -> None:
         table = self.query_one("#downloads_table", DataTable)
         table.clear()
         self.current_items.clear()
-        for item in items:
+
+        start = self._current_page * self._items_per_page
+        end = start + self._items_per_page
+        page_items = self._filtered_items[start:end]
+
+        for item in page_items:
             self.current_items.append(item)
             progress = item.get("progress", 0) or 0
             table.add_row(
@@ -172,9 +337,23 @@ class DownloadScreen(Screen):
                 _human_size(item.get("size", 0)),
                 f"{progress * 100:.1f}%",
             )
-        status = self.query_one("#dl_status", Static)
+
+        self._show_pagination_status()
+
+        if self.current_items:
+            table.focus()
+
+    def _show_pagination_status(self) -> None:
+        total = len(self._filtered_items)
+        max_page = max(0, (total - 1) // self._items_per_page) if total else 0
+        current = self._current_page + 1
+        start = self._current_page * self._items_per_page + 1
+        end = min((self._current_page + 1) * self._items_per_page, total)
+
+        msg = f"Page {current}/{max_page + 1} | Showing {start}-{end} of {total}"
+        status = self.query_one("#pagination_status", Static)
         if status:
-            status.update(f"Loaded {len(items)} downloads.")
+            status.update(msg)
 
     # ------------------------------------------------------------------
     # Download selected
@@ -280,15 +459,9 @@ class DownloadScreen(Screen):
         if status:
             status.update(msg)
 
-
-def _trunc_name(name: str, max_len: int = 30) -> str:
-    if len(name) <= max_len:
-        return name
-    return name[:max_len - 1] + "…"
-
-# ------------------------------------------------------------------
-# Delete selected
-# ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Delete selected
+    # ------------------------------------------------------------------
     def action_delete_selected(self) -> None:
         table = self.query_one("#downloads_table", DataTable)
         if table.cursor_row is None or table.cursor_row >= len(self.current_items):
